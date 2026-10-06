@@ -93,6 +93,12 @@ says "AI model: ready", then turn on aeroplane mode and reload to check it still
 4. Or press **Start auto-scan** and just move the camera when the countdown tells you to.
 5. Tap any square to see its details, or to scan it again.
 
+**Whole-field view (no selecting):** press **Whole-field view** so it says ON.
+A 3 x 3 grid appears on the camera picture. Hold the camera high above the tray
+so each plant sits inside its own square, then press **Scan whole field**. All
+9 zones are scanned from that one picture. Keep the tray edges lined up with
+the grid and keep the camera steady for the 2 seconds.
+
 If something goes wrong:
 
 - Camera fails: use **Upload photo** (keep 9 leaf photos ready on the device).
@@ -127,6 +133,12 @@ fine, the zone is marked Warning.
 **Field map.** The field is split into 9 zones. Each scan takes several
 readings over 2 seconds and averages them, so one shaky frame does not change
 the result. Above 75% is green, 40 to 75% is yellow, below 40% is red.
+
+**Whole-field view.** The camera sees the whole tray in one picture. The
+program cuts that picture into 9 equal squares and runs the same health check
+on each square. A real drone does the same thing with a photo taken from high
+up, and uses GPS to know where on the farm each square is. Our phone has no
+GPS position over a tray, so we line the tray up with the grid on the screen.
 
 **Advice.** Each problem type has a suggested action. These are suggestions:
 the system sees that a leaf looks unhealthy, but yellow leaves can have several

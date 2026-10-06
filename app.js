@@ -54,6 +54,7 @@ let model = null;            // the Teachable Machine model (null = not loaded)
 let busy = false;            // true while a scan is running
 let autoRunning = false;     // true while auto-scan is running
 let liveBusy = false;
+let fieldView = false;       // true = the camera sees the whole tray and all 9 zones are scanned at once
 
 
 /* ========================= 2. PAGE ELEMENTS ========================= */
@@ -152,7 +153,9 @@ function useUploadedPhoto(file) {
 
 // Copies the middle square of the camera picture (or photo) onto the hidden canvas.
 // Returns false if there is no picture yet.
-function grabFrame() {
+// If "cell" is given (0 to 8), it copies only that ninth of the square instead.
+// That is how the whole-field view cuts one picture into 9 zones.
+function grabFrame(cell) {
   let picture, width, height;
 
   if (source === "camera" && video.readyState >= 2) {
@@ -164,8 +167,17 @@ function grabFrame() {
   }
   if (!width || !height) return false;
 
-  const side = Math.min(width, height);
-  captureCtx.drawImage(picture, (width - side) / 2, (height - side) / 2, side, side, 0, 0, SIZE, SIZE);
+  let side = Math.min(width, height);
+  let left = (width - side) / 2;
+  let top = (height - side) / 2;
+
+  if (cell !== undefined) {
+    side = side / 3;
+    left += (cell % 3) * side;             // column 0, 1 or 2
+    top += Math.floor(cell / 3) * side;    // row 0, 1 or 2
+  }
+
+  captureCtx.drawImage(picture, left, top, side, side, 0, 0, SIZE, SIZE);
   return true;
 }
 
@@ -463,6 +475,62 @@ function goToNextZone() {
   $("scanMessage").textContent = "Field scan complete. See the summary below.";
 }
 
+// Whole-field view: the camera sees the whole tray at once.
+// The picture is cut into 3 x 3 squares and every square is analysed as one zone.
+// A real drone does the same with a photo taken from high up.
+async function scanWholeField() {
+  if (busy) return;
+  if (!grabFrame()) {
+    $("scanMessage").textContent = "No picture yet. Start the camera or upload a photo first.";
+    return;
+  }
+
+  busy = true;
+  setButtons();
+  $("scanText").textContent = "DRONE SCANNING WHOLE FIELD...";
+  $("scanOverlay").classList.remove("hidden");
+  $("scanMessage").textContent = "Scanning all 9 zones...";
+
+  // Several colour readings for every zone, averaged at the end.
+  const readings = ZONES.map(() => []);
+  const endTime = Date.now() + SETTINGS.scanSeconds * 1000;
+  while (Date.now() < endTime) {
+    for (let cell = 0; cell < ZONES.length; cell++) {
+      if (grabFrame(cell)) readings[cell].push(analyseColours(false));
+    }
+    await sleep(250);
+  }
+
+  for (let cell = 0; cell < ZONES.length; cell++) {
+    grabFrame(cell);
+    const ai = await classify();
+    const result = decideResult(averageReadings(readings[cell]), ai);
+    result.photo = captureCanvas.toDataURL("image/jpeg", 0.7);
+    results[ZONES[cell]] = result;
+  }
+  saveResults();
+
+  $("scanOverlay").classList.add("hidden");
+  busy = false;
+
+  // Show the details of the first zone that has a problem (or A1 if all are fine).
+  const firstProblem = ZONES.findIndex((z) => results[z].status === "warning" || results[z].status === "critical");
+  currentZone = firstProblem === -1 ? 0 : firstProblem;
+  showZoneDetail(ZONES[currentZone]);
+  $("scanMessage").textContent = "Whole field scanned. Tap a zone to see its details.";
+  drawEverything();
+}
+
+// Switches the whole-field view on or off.
+function toggleFieldView() {
+  fieldView = !fieldView;
+  $("fieldOverlay").classList.toggle("hidden", !fieldView);
+  $("scanMessage").textContent = fieldView
+    ? "Hold the camera high so the whole tray fits the grid on the camera picture."
+    : "";
+  setButtons();
+}
+
 function allZonesScanned() {
   return ZONES.every((zone) => results[zone]);
 }
@@ -500,9 +568,12 @@ async function toggleAutoScan() {
 }
 
 function setButtons() {
-  $("scanBtn").textContent = "Scan zone " + ZONES[currentZone];
+  $("scanBtn").textContent = fieldView ? "Scan whole field" : "Scan zone " + ZONES[currentZone];
   $("scanBtn").disabled = busy || autoRunning;
   $("autoBtn").textContent = autoRunning ? "Stop auto-scan" : "Start auto-scan";
+  $("autoBtn").disabled = fieldView || busy && !autoRunning;
+  $("fieldViewBtn").textContent = "Whole-field view: " + (fieldView ? "ON" : "OFF");
+  $("fieldViewBtn").disabled = busy || autoRunning;
   $("demoBtn").disabled = busy || autoRunning;
   $("resetBtn").disabled = busy || autoRunning;
 }
@@ -703,7 +774,15 @@ function start() {
   $("cameraSelect").onchange = (event) => startCamera(event.target.value);
   $("uploadInput").onchange = (event) => { useUploadedPhoto(event.target.files[0]); event.target.value = ""; };
   $("modelFilesInput").onchange = (event) => loadModelFromFiles(event.target.files);
-  $("scanBtn").onclick = scanZone;
+  $("scanBtn").onclick = () => (fieldView ? scanWholeField() : scanZone());
+  $("fieldViewBtn").onclick = toggleFieldView;
+
+  // The 3 x 3 guide grid drawn over the camera picture in whole-field view.
+  ZONES.forEach((zone) => {
+    const guide = document.createElement("span");
+    guide.textContent = zone;
+    $("fieldOverlay").appendChild(guide);
+  });
   $("autoBtn").onclick = toggleAutoScan;
   $("demoBtn").onclick = loadDemo;
   $("resetBtn").onclick = resetField;

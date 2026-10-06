@@ -139,6 +139,22 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .corner.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
 .corner.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
 
+/* Guide grid for whole-field view */
+.field-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+.field-overlay span {
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  color: #fff;
+  font-weight: 700;
+  padding: 4px 8px;
+  text-shadow: 0 1px 4px #000;
+}
+
 /* Scanning animation */
 .scan-overlay { position: absolute; inset: 0; background: rgba(0, 255, 120, 0.08); }
 .scan-line {

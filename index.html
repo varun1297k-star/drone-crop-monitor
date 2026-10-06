@@ -38,6 +38,9 @@
         <img id="uploadedImage" class="hidden" alt="Uploaded leaf image">
         <div id="noSource" class="no-source">Camera is off.<br>Press "Start camera" or upload a photo.</div>
 
+        <!-- Guide grid for whole-field view (filled in by app.js) -->
+        <div id="fieldOverlay" class="field-overlay hidden"></div>
+
         <!-- Scanning animation (only visible while scanning) -->
         <div id="scanOverlay" class="scan-overlay hidden">
           <div class="scan-line"></div>
@@ -87,6 +90,11 @@
         <span><i class="dot empty"></i>No plant</span>
       </div>
 
+      <div class="button-row">
+        <button id="fieldViewBtn" class="secondary">Whole-field view: OFF</button>
+      </div>
+      <p class="note">ON = hold the camera high so it sees the whole tray. One press scans all 9 zones.
+        OFF = hold the camera over one zone at a time.</p>
       <div class="button-row">
         <button id="scanBtn" class="primary big">Scan zone A1</button>
       </div>
