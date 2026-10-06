@@ -1,0 +1,280 @@
+/* Drone Vision - Crop Health Monitor
+   Simple, large and readable from a distance. */
+
+:root {
+  --bg: #f4f6f3;
+  --card: #ffffff;
+  --text: #17211a;
+  --muted: #5d6b61;
+  --line: #dde3dc;
+  --brand: #14532d;
+  --healthy: #1e9e4a;
+  --warning: #e0a100;
+  --critical: #d93025;
+  --empty: #9aa39c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- Header ---------- */
+header {
+  background: var(--brand);
+  color: #fff;
+  padding: 16px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+h1 { margin: 0; font-size: 34px; letter-spacing: 0.5px; }
+.subtitle { margin: 0; font-size: 20px; opacity: 0.85; }
+.header-right { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 15px;
+}
+.pill:empty { display: none; }
+.pill.good { background: #d9f5e1; color: #0f5a28; }
+.pill.bad { background: #fff1c9; color: #6b4b00; }
+
+.demo-banner {
+  background: var(--warning);
+  color: #1d1600;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 16px;
+}
+
+/* ---------- Layout ---------- */
+main {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+.card.wide { grid-column: 1 / -1; }
+h2 { margin: 0 0 12px; font-size: 26px; }
+h3 { margin: 22px 0 10px; font-size: 20px; }
+.hint, .note, .caption, .small-line { color: var(--muted); }
+.hint { margin: 0 0 12px; }
+.note { font-size: 15px; margin: 10px 0 0; }
+.message { min-height: 24px; margin: 8px 0 0; font-weight: 600; }
+
+/* ---------- Buttons ---------- */
+button, .button, select {
+  font: inherit;
+  font-weight: 600;
+  border: 2px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 18px;
+  cursor: pointer;
+}
+button.secondary, .button.secondary, select {
+  background: #fff;
+  color: var(--brand);
+}
+button.danger { border-color: var(--critical); color: var(--critical); }
+button.big { font-size: 24px; padding: 16px 24px; width: 100%; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.button-row > * { flex: 1 1 auto; text-align: center; }
+
+/* ---------- Camera ---------- */
+.camera-box {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;   /* square: exactly the area that gets analysed */
+  background: #101613;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.camera-box video, .camera-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.no-source {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #cfd8d1;
+  padding: 20px;
+}
+
+/* Viewfinder corners */
+.corner { position: absolute; width: 34px; height: 34px; border: 4px solid #fff; opacity: 0.85; }
+.corner.tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
+.corner.tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
+.corner.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
+.corner.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
+
+/* Scanning animation */
+.scan-overlay { position: absolute; inset: 0; background: rgba(0, 255, 120, 0.08); }
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #3dff9a;
+  box-shadow: 0 0 18px 6px rgba(61, 255, 154, 0.6);
+  animation: sweep 1.2s linear infinite alternate;
+}
+@keyframes sweep { from { top: 2%; } to { top: 97%; } }
+.scan-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 6px #000;
+}
+
+/* ---------- Live reading ---------- */
+.live { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.live-numbers { flex: 1 1 200px; }
+.big-number { font-size: 56px; font-weight: 800; line-height: 1.05; }
+.status-label { font-size: 24px; font-weight: 700; }
+.small-line { font-size: 16px; margin-top: 4px; }
+.mask-box { text-align: center; }
+.mask-box canvas {
+  width: 150px;
+  height: 150px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #e9ece8;
+}
+.caption { font-size: 13px; }
+
+.text-healthy { color: var(--healthy); }
+.text-warning { color: #b98500; }
+.text-critical { color: var(--critical); }
+.text-empty { color: var(--empty); }
+
+/* ---------- Field map ---------- */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.zone {
+  aspect-ratio: 1 / 1;
+  border: 4px solid transparent;
+  border-radius: 14px;
+  background: #e9ece8;
+  color: var(--text);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.zone .zone-name { font-size: 18px; font-weight: 700; opacity: 0.85; }
+.zone .zone-score { font-size: 34px; font-weight: 800; line-height: 1; }
+.zone .zone-type { font-size: 14px; font-weight: 600; text-align: center; }
+.zone.healthy { background: var(--healthy); color: #fff; }
+.zone.warning { background: var(--warning); color: #1d1600; }
+.zone.critical { background: var(--critical); color: #fff; }
+.zone.empty { background: var(--empty); color: #fff; }
+.zone.current { border-color: #0b63ce; box-shadow: 0 0 0 4px rgba(11, 99, 206, 0.25); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 12px; font-size: 15px; }
+.dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.dot.healthy { background: var(--healthy); }
+.dot.warning { background: var(--warning); }
+.dot.critical { background: var(--critical); }
+.dot.empty { background: var(--empty); }
+
+.zone-detail { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.zone-detail img { width: 120px; height: 120px; border-radius: 10px; object-fit: cover; }
+.zone-detail .detail-text { flex: 1 1 220px; }
+.zone-detail .detail-title { font-size: 24px; font-weight: 800; }
+.advice {
+  background: #f1f5f0;
+  border-left: 5px solid var(--brand);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+/* ---------- Summary ---------- */
+.summary-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tile { background: #f1f5f0; border-radius: 14px; padding: 16px; text-align: center; }
+.attention-list { display: grid; gap: 8px; }
+.attention-item {
+  border-left: 8px solid var(--warning);
+  background: #f8f9f7;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.attention-item.critical { border-left-color: var(--critical); }
+
+/* Time comparison chart */
+.chart { display: grid; gap: 12px; }
+.bar-row { display: grid; grid-template-columns: 240px 1fr 150px; gap: 12px; align-items: center; }
+.bar-track { background: #eef1ed; border-radius: 8px; height: 30px; }
+.bar { height: 100%; border-radius: 8px; min-width: 8px; }
+.bar.manual { background: #8a958c; }
+.bar.drone { background: var(--healthy); }
+.bar-value { font-weight: 700; }
+
+/* ---------- Settings + limitations ---------- */
+details { margin-bottom: 10px; }
+summary { font-size: 22px; font-weight: 700; cursor: pointer; padding: 6px 0; }
+.settings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 10px; }
+.settings label { display: block; }
+.settings input[type="range"] { width: 100%; }
+.limits { margin: 8px 0 0; padding-left: 22px; }
+.limits li { margin-bottom: 6px; }
+
+footer { text-align: center; color: var(--muted); padding: 10px 16px 30px; font-size: 15px; }
+
+/* ---------- Phone layout ---------- */
+@media (max-width: 860px) {
+  body { font-size: 17px; }
+  main { grid-template-columns: 1fr; }
+  h1 { font-size: 28px; }
+  .summary-tiles { grid-template-columns: repeat(2, 1fr); }
+  .big-number { font-size: 44px; }
+  .zone .zone-score { font-size: 26px; }
+  .zone .zone-type { font-size: 12px; }
+  .bar-row { grid-template-columns: 1fr; gap: 4px; }
+  .settings { grid-template-columns: 1fr; }
+}

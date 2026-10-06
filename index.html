@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drone Vision - Crop Health Monitor</title>
+  <meta name="theme-color" content="#14532d">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>Drone Vision</h1>
+      <p class="subtitle">Crop Health Monitor</p>
+    </div>
+    <div class="header-right">
+      <span id="modelStatus" class="pill">AI model: loading...</span>
+      <span id="onlineStatus" class="pill"></span>
+    </div>
+  </header>
+
+  <!-- Shown only when the map contains sample results -->
+  <div id="demoBanner" class="demo-banner hidden">
+    DEMO DATA - these are sample results, not a live scan.
+  </div>
+
+  <main>
+
+    <!-- ============ 1. DRONE CAMERA ============ -->
+    <section class="card">
+      <h2>1. Drone camera</h2>
+
+      <div class="camera-box" id="cameraBox">
+        <video id="video" autoplay playsinline muted></video>
+        <img id="uploadedImage" class="hidden" alt="Uploaded leaf image">
+        <div id="noSource" class="no-source">Camera is off.<br>Press "Start camera" or upload a photo.</div>
+
+        <!-- Scanning animation (only visible while scanning) -->
+        <div id="scanOverlay" class="scan-overlay hidden">
+          <div class="scan-line"></div>
+          <div class="scan-text" id="scanText">DRONE SCANNING...</div>
+        </div>
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+      </div>
+
+      <div class="button-row">
+        <button id="startCameraBtn">Start camera</button>
+        <label class="button secondary">
+          Upload photo
+          <input type="file" id="uploadInput" accept="image/*" hidden>
+        </label>
+        <select id="cameraSelect" class="hidden" aria-label="Choose camera"></select>
+      </div>
+      <p id="cameraMessage" class="message"></p>
+
+      <!-- Live reading: updates all the time, before you press Scan -->
+      <h3>Live reading</h3>
+      <div class="live">
+        <div class="live-numbers">
+          <div id="liveHealth" class="big-number">--</div>
+          <div id="liveStatus" class="status-label">Waiting for camera</div>
+          <div id="liveAI" class="small-line">AI: --</div>
+          <div id="liveColours" class="small-line">Colours: --</div>
+        </div>
+        <div class="mask-box">
+          <canvas id="maskCanvas" width="224" height="224"></canvas>
+          <div class="caption">What the computer sees<br>(grey = ignored background)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. FIELD MAP ============ -->
+    <section class="card">
+      <h2>2. Field map</h2>
+      <p class="hint">Hold the drone camera over a zone, then scan it.</p>
+
+      <div id="fieldGrid" class="field-grid"></div>
+
+      <div class="legend">
+        <span><i class="dot healthy"></i>Healthy</span>
+        <span><i class="dot warning"></i>Warning</span>
+        <span><i class="dot critical"></i>Critical</span>
+        <span><i class="dot empty"></i>No plant</span>
+      </div>
+
+      <div class="button-row">
+        <button id="scanBtn" class="primary big">Scan zone A1</button>
+      </div>
+      <div class="button-row">
+        <button id="autoBtn" class="secondary">Start auto-scan</button>
+        <button id="demoBtn" class="secondary">Demo mode</button>
+        <button id="resetBtn" class="secondary danger">Reset field</button>
+      </div>
+      <p id="scanMessage" class="message"></p>
+
+      <h3>Zone details</h3>
+      <div id="zoneDetail" class="zone-detail">Scan a zone to see its result here.</div>
+    </section>
+
+    <!-- ============ 3. SUMMARY ============ -->
+    <section class="card wide">
+      <h2>3. Field summary</h2>
+      <div class="summary-tiles">
+        <div class="tile"><div id="sumHealth" class="big-number">--</div><div>Overall field health</div></div>
+        <div class="tile"><div id="sumHealthy" class="big-number">0</div><div>Healthy zones</div></div>
+        <div class="tile"><div id="sumAffected" class="big-number">0</div><div>Affected zones</div></div>
+        <div class="tile"><div id="sumScanned" class="big-number">0/9</div><div>Zones scanned</div></div>
+      </div>
+
+      <h3>Zones needing attention</h3>
+      <div id="attentionList" class="attention-list">Nothing scanned yet.</div>
+      <p class="note">Advice is a suggestion only. The system can see that a plant looks unhealthy,
+        but it cannot always tell the real cause. A farmer should check the plant.</p>
+
+      <h3>Why use a drone? (time to check a field)</h3>
+      <div class="chart">
+        <div class="bar-row">
+          <div class="bar-label">Walking and checking by hand</div>
+          <div class="bar-track"><div class="bar manual" style="width:100%"></div></div>
+          <div class="bar-value">about 2 days</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Drone scan</div>
+          <div class="bar-track"><div class="bar drone" style="width:4%"></div></div>
+          <div class="bar-value">about 30 minutes</div>
+        </div>
+      </div>
+      <p class="note">Rough estimates for a large farm (around 50 acres), for illustration only.
+        We did not measure these ourselves.</p>
+    </section>
+
+    <!-- ============ 4. SETTINGS + LIMITATIONS ============ -->
+    <section class="card wide">
+      <details>
+        <summary>Settings</summary>
+        <div class="settings">
+          <label>Healthy above <b id="healthyAboveVal"></b>%
+            <input type="range" id="healthyAbove" min="50" max="95" step="1"></label>
+          <label>Critical below <b id="warningAboveVal"></b>%
+            <input type="range" id="warningAbove" min="10" max="60" step="1"></label>
+          <label>Background removal strength <b id="bgSaturationVal"></b>
+            <input type="range" id="bgSaturation" min="0.08" max="0.45" step="0.01"></label>
+          <label>Auto-scan countdown <b id="autoCountdownVal"></b> s
+            <input type="range" id="autoCountdown" min="2" max="10" step="1"></label>
+        </div>
+        <p class="note">If the white paper shows up as yellow or brown in "What the computer sees",
+          increase the background removal strength.</p>
+        <div class="button-row">
+          <label class="button secondary">
+            Load AI model from files
+            <input type="file" id="modelFilesInput" multiple accept=".json,.bin" hidden>
+          </label>
+        </div>
+        <p class="note">Only needed if the model is not in the "model" folder. Select all three files
+          together: model.json, metadata.json and weights.bin.</p>
+      </details>
+
+      <details open>
+        <summary>Known limitations</summary>
+        <ul class="limits">
+          <li>A phone or laptop camera stands in for the drone camera. The same software would run on a real drone's video.</li>
+          <li>Bad or coloured lighting changes the colours and can give a wrong score.</li>
+          <li>It needs a plain, light background. Soil or a messy background confuses it.</li>
+          <li>It detects that a leaf looks unhealthy, but cannot always tell the cause.</li>
+          <li>The AI model was trained on a small number of our own leaf photos, so it can make mistakes on other plants.</li>
+        </ul>
+      </details>
+    </section>
+
+  </main>
+
+  <footer>Catalyst 3.0 - MachMind - Drone Vision</footer>
+
+  <!-- Hidden canvas: every frame is copied here (224 x 224) before it is analysed -->
+  <canvas id="captureCanvas" width="224" height="224" class="hidden"></canvas>
+
+  <!-- Libraries are stored in the libs folder, so no internet is needed -->
+  <script src="libs/tf.min.js"></script>
+  <script src="libs/teachablemachine-image.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
