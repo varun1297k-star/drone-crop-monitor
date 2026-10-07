@@ -20,7 +20,7 @@
 const SETTINGS = {
   healthyAbove: 75,     // score above this  = Healthy (green)
   warningAbove: 40,     // score below this  = Critical (red). In between = Warning (yellow)
-  bgSaturation: 0.22,   // pixels with less colour than this are background (white paper, shadows)
+  bgTolerance: 0.06,    // how close a pixel's colour must be to the background colour to be removed
   minLeafPercent: 3,    // if less than 3% of the picture is leaf, we say "No plant"
   aiMinConfidence: 0.6, // we only trust the AI when it is at least 60% sure
   scanSeconds: 2,       // how long one scan takes
@@ -206,37 +206,129 @@ function rgbToHsv(r, g, b) {
   return [hue, saturation, max];
 }
 
+// ---- Background removal, part 1: what colour is the background? ----
+// The leaf is in the middle, so the outer edge of the picture is background.
+// We take the middle (median) colour of the edge pixels.
+// The colour is stored as "share of red" and "share of green", ignoring brightness.
+// That way a shadow (same colour, only darker) still counts as background.
+const WHITE_BACKGROUND = { red: 1 / 3, green: 1 / 3 };
+const EDGE = 16;   // width of the edge strip, in pixels
+
+function findBackgroundColour(pixels) {
+  const reds = [], greens = [];
+
+  for (let y = 0; y < SIZE; y += 2) {
+    for (let x = 0; x < SIZE; x += 2) {
+      const inMiddle = x >= EDGE && x < SIZE - EDGE && y >= EDGE && y < SIZE - EDGE;
+      if (inMiddle) continue;
+      const i = (y * SIZE + x) * 4;
+      const sum = pixels[i] + pixels[i + 1] + pixels[i + 2];
+      if (sum < 60) continue;                // too dark to tell its colour
+      reds.push(pixels[i] / sum);
+      greens.push(pixels[i + 1] / sum);
+    }
+  }
+  if (reds.length < 50) return WHITE_BACKGROUND;
+
+  reds.sort((a, b) => a - b);
+  greens.sort((a, b) => a - b);
+  const red = reds[Math.floor(reds.length / 2)];
+  const green = greens[Math.floor(greens.length / 2)];
+  const blue = 1 - red - green;
+
+  // If the edge is green, the leaf is filling the whole picture.
+  // Then we cannot see the background, so we assume it is white or grey.
+  if (green > 0.4 && green > red + 0.04 && green > blue + 0.04) return WHITE_BACKGROUND;
+
+  return { red: red, green: green };
+}
+
+// ---- Background removal, part 2: keep only the main leaf shapes ----
+// "kinds" has one number per pixel: 0 = background, 1 = green, 2 = yellow, 3 = brown.
+// Pixels that touch each other form a shape. Small shapes (specks, bits of
+// clutter) are removed: only the biggest shape and any shape at least a fifth
+// of its size are kept.
+function keepMainShapes(kinds) {
+  const shapeOf = new Int32Array(kinds.length);   // which shape each pixel belongs to (0 = none yet)
+  const todo = new Int32Array(kinds.length);      // list of pixels still to visit
+  const sizes = [0];                              // sizes[n] = number of pixels in shape n
+  let biggest = 0;
+
+  for (let start = 0; start < kinds.length; start++) {
+    if (kinds[start] === 0 || shapeOf[start] !== 0) continue;
+
+    // Found a new shape: spread out from this pixel to all its touching neighbours.
+    const shape = sizes.length;
+    let count = 0, waiting = 0;
+    todo[waiting++] = start;
+    shapeOf[start] = shape;
+
+    while (waiting > 0) {
+      const p = todo[--waiting];
+      count++;
+      const x = p % SIZE;
+      const neighbours = [p - SIZE, p + SIZE, x > 0 ? p - 1 : -1, x < SIZE - 1 ? p + 1 : -1];
+      for (const n of neighbours) {
+        if (n >= 0 && n < kinds.length && kinds[n] !== 0 && shapeOf[n] === 0) {
+          shapeOf[n] = shape;
+          todo[waiting++] = n;
+        }
+      }
+    }
+    sizes.push(count);
+    if (count > biggest) biggest = count;
+  }
+
+  for (let p = 0; p < kinds.length; p++) {
+    if (kinds[p] !== 0 && sizes[shapeOf[p]] < biggest * 0.2) kinds[p] = 0;
+  }
+}
+
+// Colours used to paint "what the computer sees": background, green, yellow, brown.
+const MASK_COLOURS = [[225, 228, 224], [30, 158, 74], [240, 200, 0], [140, 80, 30]];
+
 // Looks at every pixel on the hidden canvas and counts green, yellow and brown ones.
 // If drawMask is true it also paints "what the computer sees".
 function analyseColours(drawMask) {
   const image = captureCtx.getImageData(0, 0, SIZE, SIZE);
   const pixels = image.data;                 // 4 numbers per pixel: red, green, blue, alpha
-  const mask = drawMask ? maskCtx.createImageData(SIZE, SIZE) : null;
+  const background = findBackgroundColour(pixels);
+  const kinds = new Uint8Array(SIZE * SIZE); // 0 = background, 1 = green, 2 = yellow, 3 = brown
+
+  for (let p = 0; p < kinds.length; p++) {
+    const i = p * 4;
+    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    const sum = r + g + b;
+    const [hue, , value] = rgbToHsv(r, g, b);
+
+    // Step 1: is this pixel background? Yes if it is very dark, or if its colour
+    // is close to the background colour (brightness does not matter, so shadows go too).
+    const redDifference = r / sum - background.red;
+    const greenDifference = g / sum - background.green;
+    const difference = Math.sqrt(redDifference * redDifference + greenDifference * greenDifference);
+    if (value < 0.12 || difference < SETTINGS.bgTolerance) continue;
+
+    // Step 2: it is not background, so which colour group is it?
+    if (hue >= HUE_GREEN_START && hue <= HUE_GREEN_END) kinds[p] = 1;
+    else if (hue >= HUE_YELLOW_START && hue < HUE_GREEN_START) kinds[p] = 2;
+    else if (hue < HUE_YELLOW_START || hue > 330) kinds[p] = 3;
+    // any other hue (blue, purple) is not a leaf, so it stays background
+  }
+
+  // Step 3: throw away small specks that are not part of the leaf.
+  keepMainShapes(kinds);
 
   let green = 0, yellow = 0, brown = 0;
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    const [hue, saturation, value] = rgbToHsv(pixels[i], pixels[i + 1], pixels[i + 2]);
-    let colour = [225, 228, 224];            // grey = background (ignored)
-
-    // Step 1: is this pixel part of a leaf? White paper and shadows have almost no colour.
-    const isBackground = saturation < SETTINGS.bgSaturation || value < 0.12;
-
-    // Step 2: if it is leaf, which colour group is it?
-    if (!isBackground) {
-      if (hue >= HUE_GREEN_START && hue <= HUE_GREEN_END) {
-        green++; colour = [30, 158, 74];
-      } else if (hue >= HUE_YELLOW_START && hue < HUE_GREEN_START) {
-        yellow++; colour = [240, 200, 0];
-      } else if (hue < HUE_YELLOW_START || hue > 330) {
-        brown++; colour = [140, 80, 30];
-      }
-      // any other hue (blue, purple) is not a leaf, so it stays background
-    }
+  const mask = drawMask ? maskCtx.createImageData(SIZE, SIZE) : null;
+  for (let p = 0; p < kinds.length; p++) {
+    if (kinds[p] === 1) green++;
+    else if (kinds[p] === 2) yellow++;
+    else if (kinds[p] === 3) brown++;
 
     if (mask) {
-      mask.data[i] = colour[0]; mask.data[i + 1] = colour[1]; mask.data[i + 2] = colour[2];
-      mask.data[i + 3] = 255;
+      const colour = MASK_COLOURS[kinds[p]];
+      mask.data[p * 4] = colour[0]; mask.data[p * 4 + 1] = colour[1]; mask.data[p * 4 + 2] = colour[2];
+      mask.data[p * 4 + 3] = 255;
     }
   }
   if (mask) maskCtx.putImageData(mask, 0, 0);
@@ -768,7 +860,7 @@ function showOnlineStatus() {
 // ---- Start-up: runs once when the page opens ----
 function start() {
   loadSaved();
-  ["healthyAbove", "warningAbove", "bgSaturation", "autoCountdown"].forEach(connectSlider);
+  ["healthyAbove", "warningAbove", "bgTolerance", "autoCountdown"].forEach(connectSlider);
 
   $("startCameraBtn").onclick = () => startCamera();
   $("cameraSelect").onchange = (event) => startCamera(event.target.value);

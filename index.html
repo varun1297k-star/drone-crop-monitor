@@ -58,6 +58,7 @@
         </label>
         <select id="cameraSelect" class="hidden" aria-label="Choose camera"></select>
       </div>
+      <p class="note">Keep the leaf in the middle, with some background showing all round the edge.</p>
       <p id="cameraMessage" class="message"></p>
 
       <!-- Live reading: updates all the time, before you press Scan -->
@@ -150,13 +151,13 @@
             <input type="range" id="healthyAbove" min="50" max="95" step="1"></label>
           <label>Critical below <b id="warningAboveVal"></b>%
             <input type="range" id="warningAbove" min="10" max="60" step="1"></label>
-          <label>Background removal strength <b id="bgSaturationVal"></b>
-            <input type="range" id="bgSaturation" min="0.08" max="0.45" step="0.01"></label>
+          <label>Background removal strength <b id="bgToleranceVal"></b>
+            <input type="range" id="bgTolerance" min="0.02" max="0.15" step="0.01"></label>
           <label>Auto-scan countdown <b id="autoCountdownVal"></b> s
             <input type="range" id="autoCountdown" min="2" max="10" step="1"></label>
         </div>
-        <p class="note">If the white paper shows up as yellow or brown in "What the computer sees",
-          increase the background removal strength.</p>
+        <p class="note">If the background or a shadow shows up as yellow or brown in "What the computer sees",
+          increase the background removal strength. If parts of the leaf go grey, decrease it.</p>
         <div class="button-row">
           <label class="button secondary">
             Load AI model from files
@@ -172,7 +173,8 @@
         <ul class="limits">
           <li>A phone or laptop camera stands in for the drone camera. The same software would run on a real drone's video.</li>
           <li>Bad or coloured lighting changes the colours and can give a wrong score.</li>
-          <li>It needs a plain, light background. Soil or a messy background confuses it.</li>
+          <li>It removes the background by its colour, so the background must be one plain colour and visible around the edges of the picture.</li>
+          <li>A brown leaf on brown soil cannot be separated by colour. A real system would add a near-infrared camera for this.</li>
           <li>It detects that a leaf looks unhealthy, but cannot always tell the cause.</li>
           <li>The AI model was trained on a small number of our own leaf photos, so it can make mistakes on other plants.</li>
         </ul>
